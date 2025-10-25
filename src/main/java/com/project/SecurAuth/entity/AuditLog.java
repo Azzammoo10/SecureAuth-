@@ -1,18 +1,22 @@
 package com.project.SecurAuth.entity;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
+import com.project.SecurAuth.entity.Enum.AuditStatus;
+import com.project.SecurAuth.entity.Enum.SeverityLevel;
+import jakarta.persistence.*;
 import lombok.Data;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
 
 @Entity
 @Data
 public class AuditLog {
     @Id
-    @GeneratedValue
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String userName;
+
+    private String username;
 
     private String action;
 
@@ -20,9 +24,16 @@ public class AuditLog {
 
     private String ipAddress;
 
-    private String status;
+    @Enumerated(EnumType.STRING)
+    private AuditStatus status;
 
-    private String timestamp;
+    @Enumerated(EnumType.STRING)
+    private SeverityLevel severity;
+
+    @CreationTimestamp
+    private LocalDateTime timestamp;
+
+    private String performedBy;
 
 
 }
