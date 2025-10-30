@@ -1,9 +1,14 @@
 package com.project.SecurAuth.entity;
 
 
+import com.project.SecurAuth.entity.Enum.RoleType;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Getter;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
 import java.util.Set;
 
 
@@ -15,22 +20,24 @@ public class User  {
     @GeneratedValue
     private Long id;
 
+    private String firstName;
+    private String lastName;
+
     private String username;
     private String password;
     private String email;
     private boolean enabled;
     private int failedAttempts;
 
-    @ManyToMany(fetch = FetchType.EAGER)
-    @JoinTable(
-            name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
-    )
-    private Set<Role> roles;
 
-    private String CreatedAt;
-    private String UpdatedAt;
+    @Enumerated(EnumType.STRING)
+    private RoleType role;
+
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
 
 
 
