@@ -6,7 +6,7 @@ import com.project.SecurAuth.dto.RegisterRequest;
 import com.project.SecurAuth.entity.Enum.RoleType;
 import com.project.SecurAuth.entity.User;
 import com.project.SecurAuth.repository.UserRepository;
-import com.project.SecurAuth.service.UserService;
+import com.project.SecurAuth.service.interfaces.UserService;
 import com.project.SecurAuth.validation.StrongPasswordValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -52,17 +52,25 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Optional<User> getUserByUsername(String username) {
-        return Optional.empty();
+        if(username == null || username.isBlank()) return Optional.empty();
+
+        return userRepository.findByUsername(username);
     }
 
     @Override
     public Optional<User> getUserByEmail(String email) {
-        return Optional.empty();
+        if(email == null || email.isBlank()) return Optional.empty();
+
+        return userRepository.findByEmail(email);
     }
 
     @Override
     public void enableUser(String email) {
-
+        Optional<User> user = getUserByEmail(email);
+        if(user.isPresent()){
+            user.get().setEnabled(true);
+            userRepository.save(user.get());
+        }
     }
 
     @Override

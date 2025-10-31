@@ -1,4 +1,4 @@
-package com.project.SecurAuth.service;
+package com.project.SecurAuth.service.interfaces;
 
 import com.project.SecurAuth.dto.RegisterRequest;
 import com.project.SecurAuth.entity.User;
