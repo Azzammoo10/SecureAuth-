@@ -25,7 +25,7 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public User createUser(RegisterRequest user) {
-        if(userRepository.findByEmail(user.getEmail())){
+        if(userRepository.existsByEmail(user.getEmail())){
             throw new EmailAlreadyExistsException("Email déjà utilisé");
         }
 
@@ -87,11 +87,29 @@ public class UserServiceImpl implements UserService {
 
 
 
- /**
-  * -----------------------------
-  *   GENERATE USERNAME
-  * -----------------------------
-  * **/
+    /**<h6>Generate Username</h6>
+     * <hr>
+     * <p>Génère automatiquement un identifiant unique basé sur
+     *      le nom de famille de l’utilisateur et un nombre aléatoire.</p>
+     * <p>
+     * Cette méthode est utilisée lors de la création d’un compte
+     * afin d’attribuer un identifiant lisible et distinct à chaque utilisateur.
+     * <p>
+     * Exemple :
+     * <pre>{@code
+     * generateUsername("Mohamed", "Azzam");
+     * // Résultat : "azzam.472918"
+     * }</pre>
+     *
+     * @param firstname prénom de l’utilisateur (actuellement non utilisé)
+     * @param lastname  nom de famille de l’utilisateur
+     * @return un identifiant généré au format <b>nom.XXXXXX</b>
+     * @author Mohamed Azzam
+     * @version 1.0
+     * @since 2025-11
+     */
+
+
     private String generateUsername(String firstname, String lastname) {
 
         String cleanName = lastname
