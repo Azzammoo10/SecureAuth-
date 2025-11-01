@@ -15,5 +15,4 @@ public interface UserService {
     void lockUser(User user);
     User save(User user);
 
-
 }
