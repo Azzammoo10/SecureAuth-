@@ -22,5 +22,6 @@ public interface UserService {
     UserResponse updateUser(Long id, UserRequest request);
     Optional<User> getUserById(Long id);
     PagedResponse<UserResponse> getAllUsers(UserSearchRequest searchRequest);
+    void deleteUser(Long id);
 
 }

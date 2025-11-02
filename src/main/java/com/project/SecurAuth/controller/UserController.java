@@ -83,4 +83,24 @@ public class UserController {
                 users.getContent().size(), users.getPage() + 1, users.getTotalPages());
         return ResponseEntity.ok(users);
     }
+
+    /**
+     * Supprime physiquement un utilisateur
+     * DELETE /api/users/{id}
+     * 
+     * Cette opération effectue une suppression physique (hard delete) qui supprime
+     * définitivement l'utilisateur de la base de données.
+     * Les relations avec les rôles sont automatiquement supprimées.
+     * L'opération est journalisée dans l'audit avant la suppression.
+     * 
+     * @param id L'ID de l'utilisateur à supprimer
+     * @return Réponse 204 No Content en cas de succès
+     */
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
+        log.info("Requête de suppression physique d'utilisateur reçue pour l'ID: {}", id);
+        userService.deleteUser(id);
+        log.info("Utilisateur ID {} supprimé définitivement avec succès", id);
+        return ResponseEntity.noContent().build();
+    }
 }
