@@ -534,6 +534,58 @@ public class UserServiceImpl implements UserService {
         return userRepository.findById(id);
     }
 
+    /**
+     * Supprime physiquement un utilisateur de la base de données
+     * 
+     * Cette opération effectue une suppression physique (hard delete) qui supprime
+     * définitivement l'utilisateur et toutes ses relations de la base de données.
+     * Les relations ManyToMany avec les rôles sont automatiquement supprimées par JPA.
+     * 
+     * @param id L'ID de l'utilisateur à supprimer
+     * @throws UserNotFoundException si l'utilisateur n'existe pas
+     */
+    @Override
+    @Transactional
+    public void deleteUser(Long id) {
+        log.debug("Début de la suppression physique de l'utilisateur ID: {}", id);
+        
+        // Récupérer l'utilisateur existant
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> {
+                    log.error("Tentative de suppression d'un utilisateur inexistant - ID: {}", id);
+                    return new UserNotFoundException("Utilisateur non trouvé avec l'ID : " + id);
+                });
+        
+        // Sauvegarder les informations pour l'audit avant suppression
+        String username = user.getUsername();
+        String email = user.getEmail();
+        
+        // Journaliser l'opération de suppression dans l'audit AVANT la suppression
+        try {
+            auditService.logEvent(
+                user, 
+                "USER_DELETED", 
+                String.format("Utilisateur %s (%s) supprimé définitivement de la base de données", 
+                    username,
+                    email),
+                SeverityLevel.INFO
+            );
+            log.debug("Événement d'audit enregistré pour la suppression de l'utilisateur ID {}", id);
+        } catch (Exception e) {
+            log.error("Erreur lors de la journalisation de l'événement d'audit pour l'utilisateur ID: {}", 
+                    id, e);
+            // On continue même si l'audit échoue pour ne pas bloquer la suppression
+        }
+        
+        // Suppression physique de l'utilisateur
+        // JPA supprimera automatiquement les relations dans la table user_roles
+        userRepository.delete(user);
+        log.info("Utilisateur ID {} supprimé définitivement de la base de données (username: {}, email: {})", 
+                id, username, email);
+        
+        log.info("Suppression physique de l'utilisateur ID {} terminée avec succès", id);
+    }
+
 
 
     /**<h6>Generate Username</h6>
