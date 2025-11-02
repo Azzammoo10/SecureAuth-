@@ -3,6 +3,7 @@ package com.project.SecurAuth.service.interfaces;
 import com.project.SecurAuth.dto.RegisterRequest;
 import com.project.SecurAuth.dto.RegisterResponse;
 import com.project.SecurAuth.dto.UserRequest;
+import com.project.SecurAuth.dto.UserResponse;
 import com.project.SecurAuth.entity.User;
 
 import java.util.Optional;
@@ -16,7 +17,7 @@ public interface UserService {
     void resetFailedAttempts(User user);
     void lockUser(User user);
     User save(User user);
-    User updateUser(Long id, UserRequest request);
+    UserResponse updateUser(Long id, UserRequest request);
     Optional<User> getUserById(Long id);
 
 }

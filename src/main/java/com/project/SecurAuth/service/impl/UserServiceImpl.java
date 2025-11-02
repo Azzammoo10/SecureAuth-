@@ -2,10 +2,12 @@ package com.project.SecurAuth.service.impl;
 
 import com.project.SecurAuth.Exception.EmailAlreadyExistsException;
 import com.project.SecurAuth.Exception.InvalidEmailException;
+import com.project.SecurAuth.Exception.UserNotFoundException;
 import com.project.SecurAuth.Exception.WeakPasswordException;
 import com.project.SecurAuth.dto.RegisterRequest;
 import com.project.SecurAuth.dto.RegisterResponse;
 import com.project.SecurAuth.dto.UserRequest;
+import com.project.SecurAuth.dto.UserResponse;
 import com.project.SecurAuth.entity.Enum.RoleType;
 import com.project.SecurAuth.entity.Enum.SeverityLevel;
 import com.project.SecurAuth.entity.Role;
@@ -205,71 +207,179 @@ public class UserServiceImpl implements UserService {
         return null;
     }
 
+    /**
+     * Met à jour un utilisateur existant
+     * 
+     * @param id L'ID de l'utilisateur à mettre à jour
+     * @param request Les nouvelles informations (tous les champs sont optionnels)
+     * @return UserResponse avec les informations mises à jour
+     * @throws RuntimeException si l'utilisateur ou un rôle n'est pas trouvé
+     * @throws EmailAlreadyExistsException si le nouvel email est déjà utilisé
+     * @throws InvalidEmailException si le format de l'email est invalide
+     */
     @Override
-    public User updateUser(Long id, UserRequest request) {
+    @Transactional
+    public UserResponse updateUser(Long id, UserRequest request) {
+        log.debug("Début de la mise à jour de l'utilisateur avec l'ID: {}", id);
+        
+        // Récupérer l'utilisateur existant
         User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé avec l'ID : " + id));
+                .orElseThrow(() -> {
+                    log.error("Tentative de mise à jour d'un utilisateur inexistant - ID: {}", id);
+                    return new UserNotFoundException("Utilisateur non trouvé avec l'ID : " + id);
+                });
 
         List<String> changes = new ArrayList<>();
+        boolean hasChanges = false;
         
         // Vérifier et mettre à jour le prénom
-        if (request.getFirstName() != null && !request.getFirstName().isBlank() 
-                && !request.getFirstName().equals(user.getFirstName())) {
-            changes.add("Prénom: " + user.getFirstName() + " -> " + request.getFirstName());
-            user.setFirstName(request.getFirstName());
+        if (request.getFirstName() != null && !request.getFirstName().isBlank()) {
+            String newFirstName = request.getFirstName().trim();
+            if (!newFirstName.equals(user.getFirstName())) {
+                String oldFirstName = user.getFirstName() != null ? user.getFirstName() : "";
+                changes.add("Prénom: '" + oldFirstName + "' -> '" + newFirstName + "'");
+                user.setFirstName(newFirstName);
+                hasChanges = true;
+                log.debug("Mise à jour du prénom pour l'utilisateur ID {}: {} -> {}", 
+                        id, oldFirstName, newFirstName);
+            }
         }
 
         // Vérifier et mettre à jour le nom
-        if (request.getLastName() != null && !request.getLastName().isBlank() 
-                && !request.getLastName().equals(user.getLastName())) {
-            changes.add("Nom: " + user.getLastName() + " -> " + request.getLastName());
-            user.setLastName(request.getLastName());
+        if (request.getLastName() != null && !request.getLastName().isBlank()) {
+            String newLastName = request.getLastName().trim();
+            if (!newLastName.equals(user.getLastName())) {
+                String oldLastName = user.getLastName() != null ? user.getLastName() : "";
+                changes.add("Nom: '" + oldLastName + "' -> '" + newLastName + "'");
+                user.setLastName(newLastName);
+                hasChanges = true;
+                log.debug("Mise à jour du nom pour l'utilisateur ID {}: {} -> {}", 
+                        id, oldLastName, newLastName);
+            }
         }
 
-        // Vérifier et mettre à jour l'email (avec vérification d'unicité)
+        // Vérifier et mettre à jour l'email (avec validation et vérification d'unicité)
         if (request.getEmail() != null && !request.getEmail().isBlank()) {
-            if (!request.getEmail().equals(user.getEmail())) {
-                if (userRepository.existsByEmail(request.getEmail())) {
-                    throw new EmailAlreadyExistsException("Cet email est déjà utilisé par un autre utilisateur");
+            String newEmail = request.getEmail().trim().toLowerCase();
+            
+            // Validation du format de l'email
+            if (!newEmail.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")) {
+                log.warn("Tentative de mise à jour avec un email invalide pour l'utilisateur ID {}: {}", 
+                        id, request.getEmail());
+                throw new InvalidEmailException(
+                    "L'email doit être une adresse email valide au format: nom@domaine.extension"
+                );
+            }
+            
+            String currentEmail = user.getEmail() != null ? user.getEmail().toLowerCase() : "";
+            if (!newEmail.equals(currentEmail)) {
+                // Vérification de l'unicité de l'email (sauf si c'est le même utilisateur)
+                if (userRepository.existsByEmail(newEmail)) {
+                    // Vérifier si c'est le même utilisateur qui essaie de garder son email
+                    Optional<User> existingUser = userRepository.findByEmail(newEmail);
+                    if (existingUser.isEmpty() || !existingUser.get().getId().equals(id)) {
+                        log.warn("Tentative de mise à jour avec un email déjà utilisé pour l'utilisateur ID {}: {}", 
+                                id, newEmail);
+                        throw new EmailAlreadyExistsException(
+                            "Cet email est déjà utilisé par un autre utilisateur. Veuillez utiliser un autre email."
+                        );
+                    }
                 }
-                changes.add("Email: " + user.getEmail() + " -> " + request.getEmail());
-                user.setEmail(request.getEmail());
+                
+                changes.add("Email: '" + currentEmail + "' -> '" + newEmail + "'");
+                user.setEmail(newEmail);
+                hasChanges = true;
+                log.debug("Mise à jour de l'email pour l'utilisateur ID {}: {} -> {}", 
+                        id, currentEmail, newEmail);
             }
         }
 
         // Vérifier et mettre à jour les rôles
         if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
-            List<Role> newRoles = request.getRoleIds().stream()
-                    .map(roleId -> roleRepository.findById(roleId)
-                            .orElseThrow(() -> new RuntimeException("Rôle non trouvé avec l'ID : " + roleId)))
-                    .collect(Collectors.toList());
+            // Vérifier que tous les rôles existent
+            List<Role> newRoles = new ArrayList<>();
+            for (Long roleId : request.getRoleIds()) {
+                Role role = roleRepository.findById(roleId)
+                        .orElseThrow(() -> {
+                            log.error("Tentative d'attribution d'un rôle inexistant - ID: {}", roleId);
+                            return new RuntimeException("Rôle non trouvé avec l'ID : " + roleId);
+                        });
+                newRoles.add(role);
+            }
 
             // Créer une description des changements de rôles
             String oldRoles = user.getRoles().stream()
                     .map(r -> r.getName().name())
+                    .sorted()
                     .collect(Collectors.joining(", "));
             String newRolesString = newRoles.stream()
                     .map(r -> r.getName().name())
+                    .sorted()
                     .collect(Collectors.joining(", "));
             
             if (!oldRoles.equals(newRolesString)) {
                 changes.add("Rôles: [" + oldRoles + "] -> [" + newRolesString + "]");
                 user.setRoles(new HashSet<>(newRoles));
+                hasChanges = true;
+                log.debug("Mise à jour des rôles pour l'utilisateur ID {}: [{}] -> [{}]", 
+                        id, oldRoles, newRolesString);
             }
         }
 
-        user.setUpdatedAt(LocalDateTime.now());
-        userRepository.save(user);
-
-        // Journaliser les modifications
-        if (!changes.isEmpty()) {
-            String changeDescription = String.join("; ", changes);
-            auditService.logEvent(user, "USER_UPDATED", 
-                    "Modifications appliquées: " + changeDescription, 
-                    SeverityLevel.INFO);
+        // Si aucune modification n'a été apportée
+        if (!hasChanges) {
+            log.info("Aucune modification détectée pour l'utilisateur ID {}", id);
+            return buildUserResponse(user);
         }
 
-        return user;
+        // Mettre à jour le timestamp
+        user.setUpdatedAt(LocalDateTime.now());
+        
+        // Sauvegarder les modifications
+        User updatedUser = userRepository.save(user);
+        log.info("Utilisateur ID {} mis à jour avec succès. Modifications: {}", 
+                id, String.join("; ", changes));
+
+        // Journaliser les modifications dans l'audit
+        try {
+            String changeDescription = String.join("; ", changes);
+            auditService.logEvent(
+                updatedUser, 
+                "USER_UPDATED", 
+                String.format("Utilisateur %s (%s) modifié - Modifications: %s", 
+                    updatedUser.getUsername(),
+                    updatedUser.getEmail(),
+                    changeDescription),
+                SeverityLevel.INFO
+            );
+            log.debug("Événement d'audit enregistré pour la mise à jour de l'utilisateur ID {}", id);
+        } catch (Exception e) {
+            log.error("Erreur lors de la journalisation de l'événement d'audit pour l'utilisateur ID: {}", 
+                    id, e);
+            // On continue même si l'audit échoue pour ne pas bloquer la mise à jour
+        }
+
+        return buildUserResponse(updatedUser);
+    }
+
+    /**
+     * Construit un UserResponse à partir d'un User
+     */
+    private UserResponse buildUserResponse(User user) {
+        return UserResponse.builder()
+                .id(user.getId())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .email(user.getEmail())
+                .username(user.getUsername())
+                .enabled(user.isEnabled())
+                .failedAttempts(user.getFailedAttempts())
+                .roles(user.getRoles().stream()
+                        .map(role -> role.getName().name())
+                        .collect(Collectors.toSet()))
+                .createdAt(user.getCreatedAt())
+                .updatedAt(user.getUpdatedAt())
+                .build();
     }
 
     @Override
@@ -330,7 +440,7 @@ public class UserServiceImpl implements UserService {
         int attempts = 0;
         
         do {
-            int random = (int) (Math.random() * 900000) + 100000;
+        int random = (int) (Math.random() * 900000) + 100000;
             username = baseName + "." + random;
             attempts++;
             
@@ -346,3 +456,4 @@ public class UserServiceImpl implements UserService {
         return username;
     }
 }
+

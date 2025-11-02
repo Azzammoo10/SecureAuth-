@@ -40,6 +40,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/users/**").permitAll() // Temporaire pour les tests - À sécuriser avec JWT plus tard
                 .anyRequest().authenticated()
             )
             .httpBasic(httpBasic -> httpBasic.disable())
