@@ -30,6 +30,8 @@ public class UserRequest {
     @Size(max = 100, message = "L'email ne peut pas dépasser 100 caractères")
     private String email;
     
+    private Boolean enabled; // Activer/désactiver l'utilisateur (true=actif, false=bloqué)
+    
     private Set<Long> roleIds; // IDs des rôles à attribuer
 }
 

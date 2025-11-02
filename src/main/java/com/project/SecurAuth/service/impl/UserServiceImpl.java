@@ -4,10 +4,12 @@ import com.project.SecurAuth.Exception.EmailAlreadyExistsException;
 import com.project.SecurAuth.Exception.InvalidEmailException;
 import com.project.SecurAuth.Exception.UserNotFoundException;
 import com.project.SecurAuth.Exception.WeakPasswordException;
+import com.project.SecurAuth.dto.PagedResponse;
 import com.project.SecurAuth.dto.RegisterRequest;
 import com.project.SecurAuth.dto.RegisterResponse;
 import com.project.SecurAuth.dto.UserRequest;
 import com.project.SecurAuth.dto.UserResponse;
+import com.project.SecurAuth.dto.UserSearchRequest;
 import com.project.SecurAuth.entity.Enum.RoleType;
 import com.project.SecurAuth.entity.Enum.SeverityLevel;
 import com.project.SecurAuth.entity.Role;
@@ -19,6 +21,10 @@ import com.project.SecurAuth.service.interfaces.UserService;
 import com.project.SecurAuth.validation.StrongPasswordValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -294,6 +300,26 @@ public class UserServiceImpl implements UserService {
             }
         }
 
+        // Vérifier et mettre à jour le statut enabled (actif/bloqué)
+        if (request.getEnabled() != null) {
+            boolean newEnabled = request.getEnabled();
+            if (newEnabled != user.isEnabled()) {
+                String oldStatus = user.isEnabled() ? "actif" : "bloqué";
+                String newStatus = newEnabled ? "actif" : "bloqué";
+                changes.add("Statut: '" + oldStatus + "' -> '" + newStatus + "'");
+                user.setEnabled(newEnabled);
+                hasChanges = true;
+                log.debug("Mise à jour du statut pour l'utilisateur ID {}: {} -> {}", 
+                        id, oldStatus, newStatus);
+                
+                // Si l'utilisateur est activé, réinitialiser les tentatives échouées
+                if (newEnabled && user.getFailedAttempts() > 0) {
+                    user.setFailedAttempts(0);
+                    log.debug("Réinitialisation des tentatives échouées pour l'utilisateur ID {}", id);
+                }
+            }
+        }
+
         // Vérifier et mettre à jour les rôles
         if (request.getRoleIds() != null && !request.getRoleIds().isEmpty()) {
             // Vérifier que tous les rôles existent
@@ -379,6 +405,127 @@ public class UserServiceImpl implements UserService {
                         .collect(Collectors.toSet()))
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
+                .build();
+    }
+
+    /**
+     * Récupère tous les utilisateurs avec pagination et filtres
+     * 
+     * @param searchRequest Les paramètres de recherche et filtres
+     * @return PagedResponse contenant la liste paginée d'utilisateurs
+     */
+    @Override
+    public PagedResponse<UserResponse> getAllUsers(UserSearchRequest searchRequest) {
+        log.debug("Récupération des utilisateurs avec filtres: enabled={}, email={}, roleId={}, roleName={}", 
+                searchRequest.getEnabled(), searchRequest.getEmail(), 
+                searchRequest.getRoleId(), searchRequest.getRoleName());
+        
+        // Valeurs par défaut pour la pagination
+        int page = searchRequest.getPage() != null && searchRequest.getPage() >= 0 ? searchRequest.getPage() : 0;
+        int size = searchRequest.getSize() != null && searchRequest.getSize() > 0 ? searchRequest.getSize() : 20;
+        
+        // Limiter la taille maximale de la page
+        if (size > 100) {
+            size = 100;
+            log.warn("Taille de page limitée à 100 (demandée: {})", searchRequest.getSize());
+        }
+        
+        // Configuration du tri
+        String sortBy = searchRequest.getSortBy() != null && !searchRequest.getSortBy().isBlank() 
+                ? searchRequest.getSortBy() : "id";
+        String sortDirection = "desc".equalsIgnoreCase(searchRequest.getSortDirection()) ? "desc" : "asc";
+        Sort sort = Sort.by(Sort.Direction.fromString(sortDirection), sortBy);
+        
+        Pageable pageable = PageRequest.of(page, size, sort);
+        
+        Page<User> userPage;
+        
+        // Application des filtres selon les paramètres fournis
+        boolean hasEmailFilter = searchRequest.getEmail() != null && !searchRequest.getEmail().isBlank();
+        boolean hasEnabledFilter = searchRequest.getEnabled() != null;
+        boolean hasRoleIdFilter = searchRequest.getRoleId() != null;
+        boolean hasRoleNameFilter = searchRequest.getRoleName() != null && !searchRequest.getRoleName().isBlank();
+        
+        // Cas 1: Filtres combinés (statut + email + rôle par ID)
+        if (hasEnabledFilter && hasEmailFilter && hasRoleIdFilter) {
+            log.debug("Recherche avec filtres combinés: enabled={}, email={}, roleId={}", 
+                    searchRequest.getEnabled(), searchRequest.getEmail(), searchRequest.getRoleId());
+            userPage = userRepository.findByEnabledAndEmailContainingAndRoleId(
+                    searchRequest.getEnabled(), 
+                    searchRequest.getEmail(), 
+                    searchRequest.getRoleId(), 
+                    pageable);
+        }
+        // Cas 2: Statut + Rôle par ID
+        else if (hasEnabledFilter && hasRoleIdFilter) {
+            log.debug("Recherche avec filtres: enabled={}, roleId={}", 
+                    searchRequest.getEnabled(), searchRequest.getRoleId());
+            userPage = userRepository.findByEnabledAndRoleId(
+                    searchRequest.getEnabled(), 
+                    searchRequest.getRoleId(), 
+                    pageable);
+        }
+        // Cas 3: Statut + Email
+        else if (hasEnabledFilter && hasEmailFilter) {
+            log.debug("Recherche avec filtres: enabled={}, email={}", 
+                    searchRequest.getEnabled(), searchRequest.getEmail());
+            userPage = userRepository.findByEnabledAndEmailContainingIgnoreCase(
+                    searchRequest.getEnabled(), 
+                    searchRequest.getEmail(), 
+                    pageable);
+        }
+        // Cas 4: Rôle par ID uniquement
+        else if (hasRoleIdFilter) {
+            log.debug("Recherche avec filtre: roleId={}", searchRequest.getRoleId());
+            userPage = userRepository.findByRoleId(searchRequest.getRoleId(), pageable);
+        }
+        // Cas 5: Rôle par nom
+        else if (hasRoleNameFilter) {
+            try {
+                RoleType roleType = RoleType.valueOf(searchRequest.getRoleName().toUpperCase());
+                log.debug("Recherche avec filtre: roleName={}", roleType);
+                userPage = userRepository.findByRoleName(roleType, pageable);
+            } catch (IllegalArgumentException e) {
+                log.warn("Nom de rôle invalide: {}. Retour de tous les utilisateurs.", searchRequest.getRoleName());
+                userPage = hasEnabledFilter 
+                        ? userRepository.findByEnabled(searchRequest.getEnabled(), pageable)
+                        : userRepository.findAll(pageable);
+            }
+        }
+        // Cas 6: Email uniquement
+        else if (hasEmailFilter) {
+            log.debug("Recherche avec filtre: email={}", searchRequest.getEmail());
+            userPage = userRepository.findByEmailContainingIgnoreCase(searchRequest.getEmail(), pageable);
+        }
+        // Cas 7: Statut uniquement
+        else if (hasEnabledFilter) {
+            log.debug("Recherche avec filtre: enabled={}", searchRequest.getEnabled());
+            userPage = userRepository.findByEnabled(searchRequest.getEnabled(), pageable);
+        }
+        // Cas 8: Aucun filtre - tous les utilisateurs
+        else {
+            log.debug("Récupération de tous les utilisateurs sans filtre");
+            userPage = userRepository.findAll(pageable);
+        }
+        
+        // Convertir la page d'entités User en page de UserResponse
+        List<UserResponse> userResponses = userPage.getContent().stream()
+                .map(this::buildUserResponse)
+                .collect(Collectors.toList());
+        
+        log.info("Récupération réussie: {} utilisateurs sur {} (page {}/{})", 
+                userResponses.size(), userPage.getTotalElements(), 
+                page + 1, userPage.getTotalPages());
+        
+        // Construire la réponse paginée
+        return PagedResponse.<UserResponse>builder()
+                .content(userResponses)
+                .page(userPage.getNumber())
+                .size(userPage.getSize())
+                .totalElements(userPage.getTotalElements())
+                .totalPages(userPage.getTotalPages())
+                .first(userPage.isFirst())
+                .last(userPage.isLast())
                 .build();
     }
 
