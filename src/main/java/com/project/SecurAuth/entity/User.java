@@ -1,7 +1,6 @@
 package com.project.SecurAuth.entity;
 
 
-import com.project.SecurAuth.entity.Enum.RoleType;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.Getter;
@@ -9,11 +8,14 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 
 @Entity
 @Getter
 @Data
+@Table(name = "users")
 public class User  {
     @Id
     @GeneratedValue
@@ -29,8 +31,11 @@ public class User  {
     private int failedAttempts;
 
 
-    @Enumerated(EnumType.STRING)
-    private RoleType role;
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id"))
+    private Set<Role> roles = new HashSet<>();
 
     @CreationTimestamp
     private LocalDateTime createdAt;

@@ -1,0 +1,71 @@
+{
+  "requests": [
+    {
+      "name": "Enregistrement utilisateur valide",
+      "method": "POST",
+      "url": "http://localhost:8080/api/auth/register",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "firstName": "Jean",
+        "lastName": "Dupont",
+        "email": "jean.dupont@example.com",
+        "password": "SecureP@ssw0rd123"
+      }
+    },
+    {
+      "name": "Enregistrement avec email invalide",
+      "method": "POST",
+      "url": "http://localhost:8080/api/auth/register",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "firstName": "Marie",
+        "lastName": "Martin",
+        "email": "email-invalide",
+        "password": "SecureP@ssw0rd123"
+      }
+    },
+    {
+      "name": "Enregistrement avec mot de passe faible",
+      "method": "POST",
+      "url": "http://localhost:8080/api/auth/register",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "firstName": "Pierre",
+        "lastName": "Bernard",
+        "email": "pierre.bernard@example.com",
+        "password": "12345"
+      }
+    },
+    {
+      "name": "Enregistrement avec champs manquants",
+      "method": "POST",
+      "url": "http://localhost:8080/api/auth/register",
+      "headers": {
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "firstName": "",
+        "lastName": "Test",
+        "email": "test@example.com",
+        "password": "SecureP@ssw0rd123"
+      }
+    }
+  ],
+  "curl_examples": {
+    "valid_request": "curl -X POST http://localhost:8080/api/auth/register -H \"Content-Type: application/json\" -d '{\"firstName\":\"Jean\",\"lastName\":\"Dupont\",\"email\":\"jean.dupont@example.com\",\"password\":\"SecureP@ssw0rd123\"}'",
+    "invalid_email": "curl -X POST http://localhost:8080/api/auth/register -H \"Content-Type: application/json\" -d '{\"firstName\":\"Marie\",\"lastName\":\"Martin\",\"email\":\"email-invalide\",\"password\":\"SecureP@ssw0rd123\"}'"
+  },
+  "notes": {
+    "password_requirements": "Le mot de passe doit contenir au moins 10 caractères, une majuscule, une minuscule, un chiffre et un caractère spécial (@$!%*?&)",
+    "required_fields": ["firstName", "lastName", "email", "password"],
+    "endpoint": "/api/auth/register",
+    "method": "POST"
+  }
+}
+
