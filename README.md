@@ -1,4 +1,4 @@
-# SecureAuth - Identity and Access Management Platform
+# SecurAuth - Identity and Access Management Platform
 
 <div align="center">
 
@@ -34,9 +34,9 @@
 
 ## 🎯 Overview
 
-**SecureAuth** is a comprehensive Identity and Access Management (IAM) solution designed to provide centralized authentication, authorization, and user management for modern applications. Built on Spring Boot and following industry best practices, SecureAuth offers a robust, scalable, and secure platform for managing user identities and access controls.
+**SecurAuth** is a comprehensive Identity and Access Management (IAM) solution designed to provide centralized authentication, authorization, and user management for modern applications. Built on Spring Boot and following industry best practices, SecurAuth offers a robust, scalable, and secure platform for managing user identities and access controls.
 
-### Why SecureAuth?
+### Why SecurAuth?
 
 - **Centralized Management**: Single platform for all identity and access management needs
 - **Enterprise Security**: Industry-standard security implementations with JWT authentication
@@ -103,7 +103,7 @@
 
 ## 🏗 Architecture
 
-SecureAuth follows a layered architecture pattern:
+SecurAuth follows a layered architecture pattern:
 
 ```
 ┌─────────────────────────────────────────┐
@@ -157,9 +157,9 @@ cd SecureAuth-
 2. **Set up PostgreSQL database**
 
 ```sql
-CREATE DATABASE secureauth_db;
-CREATE USER secureauth_user WITH PASSWORD 'your_password';
-GRANT ALL PRIVILEGES ON DATABASE secureauth_db TO secureauth_user;
+CREATE DATABASE securauth_db;
+CREATE USER securauth_user WITH PASSWORD 'your_password';
+GRANT ALL PRIVILEGES ON DATABASE securauth_db TO securauth_user;
 ```
 
 3. **Build the project**
@@ -177,8 +177,8 @@ Configure your application by creating or modifying `src/main/resources/applicat
 spring.application.name=SecurAuth
 
 # Database Configuration
-spring.datasource.url=jdbc:postgresql://localhost:5432/secureauth_db
-spring.datasource.username=secureauth_user
+spring.datasource.url=jdbc:postgresql://localhost:5432/securauth_db
+spring.datasource.username=securauth_user
 spring.datasource.password=your_password
 spring.datasource.driver-class-name=org.postgresql.Driver
 
