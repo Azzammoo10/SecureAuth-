@@ -68,13 +68,12 @@ public class UserServiceImpl implements UserService {
         // Validation supplémentaire de l'email (format strict)
         String email = request.getEmail() != null ? request.getEmail().trim().toLowerCase() : "";
         if (email.isEmpty() || !email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")) {
-            log.warn("Tentative d'enregistrement avec un email invalide: {}", request.getEmail());
+            log.warn("|| Tentative d'enregistrement avec un email invalide: {}", request.getEmail());
             throw new InvalidEmailException(
                 "L'email doit être une adresse email valide au format: nom@domaine.extension"
             );
         }
         
-        // Vérification CRITIQUE de l'unicité de l'email AVANT toute création
         // Cette vérification empêche la création d'un utilisateur avec un email existant
         if (userRepository.existsByEmail(email)) {
             log.warn("ÉCHEC: Tentative d'enregistrement avec un email déjà existant: {}. L'utilisateur ne sera PAS créé.", email);
