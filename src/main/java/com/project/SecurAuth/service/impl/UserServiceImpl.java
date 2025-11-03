@@ -14,6 +14,31 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
+/**
+ * <h4>UserServiceImpl.java</h4>
+ * <hr>
+ * <p>Implémentation concrète de l'interface {@link com.project.SecurAuth.service.interfaces.UserService}.</p>
+ * <p>Ce service contient la logique métier liée aux utilisateurs :</p>
+ * <ul>
+ *  <li>Création d'un utilisateur (vérification d'email unique et validation de la robustesse du mot de passe),</li>
+ *  <li>Génération d'un nom d'utilisateur lisible et unique basé sur le nom de famille,</li>
+ *  <li>récupération d'un utilisateur par username ou email,</li>
+ *  <li>Activation d'un compte, gestion des tentatives d'échec et verrouillage de compte (méthodes de gestion partiellement implémentées).</li>
+ *</ul>
+ * <hr>
+ * <p>Détails techniques :</p>
+ * <ul>
+ *     <li>Utilise {@link com.project.SecurAuth.repository.UserRepository} pour la persistance.</li>
+ *     <li>Utilise {@link com.project.SecurAuth.validation.StrongPasswordValidator} pour valider la solidité des mots de passe.</li>
+ *     <li>Lance des exceptions métiers {@link com.project.SecurAuth.Exception.EmailAlreadyExistsException}</li>
+ *     <li>{@link com.project.SecurAuth.Exception.WeakPasswordException} en cas d'erreur de validation.</li>
+ * </ul>
+ *
+ *
+ * @author Mohamed Azzam
+ * @since 2025-11-02
+ */
+
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
@@ -98,7 +123,8 @@ public class UserServiceImpl implements UserService {
     /**<h6>Generate Username</h6>
      * <hr>
      * <p>Génère automatiquement un identifiant unique basé sur
-     *      le nom de famille de l’utilisateur et un nombre aléatoire.</p>
+     *      le nom de famille de l’utilisateur et un nombre aléatoire.
+     *      Si le nom de famille est vide, on utilise le prénom comme base.</p>
      * <p>
      * Cette méthode est utilisée lors de la création d’un compte
      * afin d’attribuer un identifiant lisible et distinct à chaque utilisateur.
@@ -109,18 +135,22 @@ public class UserServiceImpl implements UserService {
      * // Résultat : "azzam.472918"
      * }</pre>
      *
-     * @param firstname prénom de l’utilisateur (actuellement non utilisé)
-     * @param lastname  nom de famille de l’utilisateur
+     * @param firstname prénom de l’utilisateur (utilisé comme repli si le nom est vide)
+     * @param lastname  nom de famille de l’utilisateur (préféré pour la génération)
      * @return un identifiant généré au format <b>nom.XXXXXX</b>
      * @author Mohamed Azzam
-     * @version 1.0
      * @since 2025-11
      */
 
 
     private String generateUsername(String firstname, String lastname) {
 
-        String cleanName = lastname
+        String base = (lastname != null && !lastname.isBlank()) ? lastname : firstname;
+        if (base == null || base.isBlank()) {
+            base = "user";
+        }
+
+        String cleanName = base
                 .trim()
                 .toLowerCase()
                 .replaceAll("\\s+", ".")
