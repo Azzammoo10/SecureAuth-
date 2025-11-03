@@ -115,7 +115,7 @@ public class UserServiceImpl implements UserService {
 
         // Création de l'utilisateur
         User userCreate = new User();
-        userCreate.setFirstName(request.getFirstName().trim());
+            userCreate.setFirstName(request.getFirstName().trim());
         userCreate.setLastName(request.getLastName().trim());
         userCreate.setEmail(email);
         userCreate.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -287,13 +287,13 @@ public class UserServiceImpl implements UserService {
         }
         
         if (user.getFailedAttempts() > 0) {
-            log.debug("Réinitialisation des tentatives échouées pour l'utilisateur {} (ID: {})", 
-                    user.getUsername(), user.getId());
+            log.debug("Réinitialisation des tentatives échouées pour l'utilisateur {} (Email : {})",
+                    user.getUsername(), user.getEmail());
             user.setFailedAttempts(0);
             user.setUpdatedAt(LocalDateTime.now());
             userRepository.save(user);
-            log.info("Tentatives échouées réinitialisées pour l'utilisateur {} (ID: {})", 
-                    user.getUsername(), user.getId());
+            log.info("Tentatives échouées réinitialisées pour l'utilisateur {} (Email : {})",
+                    user.getUsername(), user.getEmail());
         }
     }
 
