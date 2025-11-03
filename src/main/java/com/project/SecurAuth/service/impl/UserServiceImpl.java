@@ -49,6 +49,7 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
 
     private static final int MAX_USERNAME_GENERATION_ATTEMPTS = 10;
+    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 3; // Nombre maximum de tentatives échouées avant blocage
 
     /**
      * Crée un nouvel utilisateur avec toutes les validations nécessaires
@@ -185,27 +186,182 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public void enableUser(String email) {
-        Optional<User> user = getUserByEmail(email);
-        if(user.isPresent()){
-            user.get().setEnabled(true);
-            userRepository.save(user.get());
+        log.debug("Activation de l'utilisateur avec l'email: {}", email);
+        Optional<User> userOpt = getUserByEmail(email);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            if (!user.isEnabled()) {
+                user.setEnabled(true);
+                // Réinitialiser les tentatives échouées lors de l'activation
+                user.setFailedAttempts(0);
+                user.setUpdatedAt(LocalDateTime.now());
+                userRepository.save(user);
+                log.info("Utilisateur avec l'email {} activé avec succès", email);
+                
+                // Journalisation dans l'audit
+                try {
+                    auditService.logEvent(
+                        user,
+                        "USER_ENABLED",
+                        String.format("Utilisateur %s (%s) activé", user.getUsername(), user.getEmail()),
+                        SeverityLevel.INFO
+                    );
+                } catch (Exception e) {
+                    log.error("Erreur lors de la journalisation de l'événement d'audit pour l'utilisateur: {}", 
+                            user.getId(), e);
+                }
+            } else {
+                log.debug("Utilisateur avec l'email {} est déjà activé", email);
+            }
+        } else {
+            log.warn("Tentative d'activation d'un utilisateur inexistant avec l'email: {}", email);
         }
     }
 
     @Override
+    @Transactional
+    public void disableUser(String email) {
+        log.debug("Désactivation de l'utilisateur avec l'email: {}", email);
+        Optional<User> userOpt = getUserByEmail(email);
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            if (user.isEnabled()) {
+                user.setEnabled(false);
+                user.setUpdatedAt(LocalDateTime.now());
+                userRepository.save(user);
+                log.info("Utilisateur avec l'email {} désactivé avec succès", email);
+                
+                // Journalisation dans l'audit
+                try {
+                    auditService.logEvent(
+                        user,
+                        "USER_DISABLED",
+                        String.format("Utilisateur %s (%s) désactivé", user.getUsername(), user.getEmail()),
+                        SeverityLevel.INFO
+                    );
+                } catch (Exception e) {
+                    log.error("Erreur lors de la journalisation de l'événement d'audit pour l'utilisateur: {}", 
+                            user.getId(), e);
+                }
+            } else {
+                log.debug("Utilisateur avec l'email {} est déjà désactivé", email);
+            }
+        } else {
+            log.warn("Tentative de désactivation d'un utilisateur inexistant avec l'email: {}", email);
+        }
+    }
+
+    @Override
+    @Transactional
     public void incrementFailedAttempts(User user) {
-
+        if (user == null) {
+            log.warn("Tentative d'incrémentation des tentatives échouées pour un utilisateur null");
+            return;
+        }
+        
+        int currentAttempts = user.getFailedAttempts();
+        int newAttempts = currentAttempts + 1;
+        user.setFailedAttempts(newAttempts);
+        user.setUpdatedAt(LocalDateTime.now());
+        
+        log.debug("Tentatives échouées pour l'utilisateur {} (ID: {}): {} -> {}", 
+                user.getUsername(), user.getId(), currentAttempts, newAttempts);
+        
+        // Si le nombre maximum de tentatives est atteint, bloquer l'utilisateur automatiquement
+        if (newAttempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
+            log.warn("Nombre maximum de tentatives échouées atteint ({}) pour l'utilisateur {} (ID: {}). Blocage automatique.", 
+                    MAX_FAILED_LOGIN_ATTEMPTS, user.getUsername(), user.getId());
+            lockUser(user);
+        } else {
+            userRepository.save(user);
+        }
     }
 
     @Override
+    @Transactional
     public void resetFailedAttempts(User user) {
-
+        if (user == null) {
+            log.warn("Tentative de réinitialisation des tentatives échouées pour un utilisateur null");
+            return;
+        }
+        
+        if (user.getFailedAttempts() > 0) {
+            log.debug("Réinitialisation des tentatives échouées pour l'utilisateur {} (ID: {})", 
+                    user.getUsername(), user.getId());
+            user.setFailedAttempts(0);
+            user.setUpdatedAt(LocalDateTime.now());
+            userRepository.save(user);
+            log.info("Tentatives échouées réinitialisées pour l'utilisateur {} (ID: {})", 
+                    user.getUsername(), user.getId());
+        }
     }
 
     @Override
+    @Transactional
     public void lockUser(User user) {
+        if (user == null) {
+            log.warn("Tentative de blocage d'un utilisateur null");
+            return;
+        }
+        
+        if (user.isEnabled()) {
+            user.setEnabled(false);
+            user.setUpdatedAt(LocalDateTime.now());
+            userRepository.save(user);
+            log.info("Utilisateur {} (ID: {}) bloqué avec succès", user.getUsername(), user.getId());
+            
+            // Journalisation dans l'audit
+            try {
+                auditService.logEvent(
+                    user,
+                    "USER_LOCKED",
+                    String.format("Utilisateur %s (%s) bloqué après %d tentatives échouées", 
+                            user.getUsername(), user.getEmail(), user.getFailedAttempts()),
+                    SeverityLevel.WARNING
+                );
+            } catch (Exception e) {
+                log.error("Erreur lors de la journalisation de l'événement d'audit pour l'utilisateur: {}", 
+                        user.getId(), e);
+            }
+        } else {
+            log.debug("Utilisateur {} (ID: {}) est déjà bloqué", user.getUsername(), user.getId());
+        }
+    }
 
+    @Override
+    @Transactional
+    public void unlockUser(User user) {
+        if (user == null) {
+            log.warn("Tentative de déblocage d'un utilisateur null");
+            return;
+        }
+        
+        if (!user.isEnabled()) {
+            user.setEnabled(true);
+            // Réinitialiser les tentatives échouées lors du déblocage
+            user.setFailedAttempts(0);
+            user.setUpdatedAt(LocalDateTime.now());
+            userRepository.save(user);
+            log.info("Utilisateur {} (ID: {}) débloqué avec succès", user.getUsername(), user.getId());
+            
+            // Journalisation dans l'audit
+            try {
+                auditService.logEvent(
+                    user,
+                    "USER_UNLOCKED",
+                    String.format("Utilisateur %s (%s) débloqué manuellement", 
+                            user.getUsername(), user.getEmail()),
+                    SeverityLevel.INFO
+                );
+            } catch (Exception e) {
+                log.error("Erreur lors de la journalisation de l'événement d'audit pour l'utilisateur: {}", 
+                        user.getId(), e);
+            }
+        } else {
+            log.debug("Utilisateur {} (ID: {}) n'est pas bloqué", user.getUsername(), user.getId());
+        }
     }
 
     @Override

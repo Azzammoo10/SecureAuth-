@@ -15,9 +15,11 @@ public interface UserService {
     public Optional<User> getUserByUsername(String username);
     public Optional<User> getUserByEmail(String email);
     void enableUser(String email);
+    void disableUser(String email);
     void incrementFailedAttempts(User user); // Augmente le Nombre d'echecs d'authentification
     void resetFailedAttempts(User user);
     void lockUser(User user);
+    void unlockUser(User user);
     User save(User user);
     UserResponse updateUser(Long id, UserRequest request);
     Optional<User> getUserById(Long id);
